@@ -7,8 +7,7 @@ import {
   calculateInitialTransform
 } from "../utilities";
 import { vertexShader, fragmentShader } from "../shaders";
-import { createProgram, getUniformLocation, createTexture, updateTexture } from "../renderer";
-import { WebGLContextState } from "../types/context";
+import { Renderer } from "../renderer";
 import { MediaRequest, MediaItem, MediaState } from "../types/media";
 import { ActiveTransform, TransformMode, RenderTransform } from "../types/transform";
 import { Vector } from "../types/vector";
@@ -18,15 +17,13 @@ type WhiteboardProps = {
   mediaRequests: MediaRequest[];
 };
 
-export default function Whiteboard({
-  mediaRequests,
-}: WhiteboardProps) {
+export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mediaCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const frameRef = useRef<number | null>(null);
-  const glStateRef = useRef<WebGLContextState | null>(null);
+  const rendererRef = useRef<Renderer | null>(null);
   const resolutionRef = useRef<Resolution>({ width: 0, height: 0, dpr: 1 });
 
   const mediaItemsRef = useRef<MediaItem[]>([]);
@@ -56,7 +53,12 @@ export default function Whiteboard({
 
       resolutionRef.current = resolution;
 
-      resizeMediaCanvas(resolution, glStateRef.current, mediaCanvasRef.current);
+      const renderer = rendererRef.current;
+
+      if (renderer) {
+        renderer.setViewport(resolution, mediaCanvasRef.current);
+      }
+
       resizeOverlayCanvas(resolution, overlayCanvasRef.current);
     });
 
@@ -74,97 +76,26 @@ export default function Whiteboard({
       return;
     }
 
-    const gl = canvas.getContext("webgl", {
-      antialias: true,
-      premultipliedAlpha: false
-    });
+    const renderer = new Renderer(canvas, vertexShader, fragmentShader);
 
-    if (!gl) {
-      return;
-    }
-
-    const program = createProgram(gl, vertexShader, fragmentShader);
-
-    const positionLocation = gl.getAttribLocation(program, "a_position");
-    const textureCoordsLocation = gl.getAttribLocation(program, "a_textureCoords");
-
-    const resolutionLocation = getUniformLocation(gl, program, "u_resolution");
-
-    const scaleLocation = getUniformLocation(gl, program, "u_scale");
-    const rotationLocation = getUniformLocation(gl, program, "u_rotation");
-    const translationLocation = getUniformLocation(gl, program, "u_translation");
-
-    const opacityLocation = getUniformLocation(gl, program, "u_opacity");
-    const textureLocation = getUniformLocation(gl, program, "u_texture");
-
-    const state: WebGLContextState = {
-      gl,
-      program,
-
-      attributes: {
-        position: positionLocation,
-        textureCoords: textureCoordsLocation,
-      },
-
-      uniforms: {
-        resolution: resolutionLocation,
-
-        scale: scaleLocation,
-        rotation: rotationLocation,
-        translation: translationLocation,
-
-        opacity: opacityLocation,
-        texture: textureLocation,
-      },
-    };
-
-    glStateRef.current = state;
+    rendererRef.current = renderer;
 
     const resolution = resolutionRef.current;
 
     if (resolution.width > 0 && resolution.height > 0) {
-      resizeMediaCanvas(resolution, state, canvas);
+      renderer.setViewport(resolution, canvas);
     }
 
-    const positionBuffer = gl.createBuffer();
-    const texCoordBuffer = gl.createBuffer();
-
-    if (!positionBuffer || !texCoordBuffer) {
-      return;
-    }
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quad), gl.STATIC_DRAW);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quad), gl.STATIC_DRAW);
-
-    gl.useProgram(program);
-
-    gl.enableVertexAttribArray(positionLocation);
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-    gl.enableVertexAttribArray(textureCoordsLocation);
-    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-    gl.vertexAttribPointer(textureCoordsLocation, 2, gl.FLOAT, false, 0, 0);
-
-    gl.uniform1i(textureLocation, 0);
-
-    gl.clearColor(0, 0, 0, 0);
-
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+    renderer.setupQuad();
+    renderer.resetState();
 
     mediaItemsRef.current = [];
 
     const update = () => {
-      renderMediaItems(
-        state,
+      renderer.renderItems(
         mediaItemsRef.current,
-        resolutionRef.current
+        resolutionRef.current,
+        calculateRenderTransform
       );
 
       renderOverlay(
@@ -185,24 +116,21 @@ export default function Whiteboard({
       }
 
       mediaItemsRef.current.forEach((item) => {
-        gl.deleteTexture(item.texture)
+        renderer.deleteTexture(item.texture);
       });
 
-      gl.deleteProgram(program);
-
-      gl.deleteBuffer(positionBuffer);
-      gl.deleteBuffer(texCoordBuffer);
+      renderer.deleteBuffers();
     };
   }, []);
 
   // media requests effect
 
   useEffect(() => {
-    if (!glStateRef.current) {
+    if (!rendererRef.current) {
       return;
     }
 
-    const { gl } = glStateRef.current;
+    const renderer = rendererRef.current;
 
     mediaRequests.forEach((request) => {
       if (completedRequestsRef.current.has(request.id)) {
@@ -212,13 +140,13 @@ export default function Whiteboard({
       const item =
         request.type === "image"
           ? createImageItemFromUrl(
-            gl,
+            renderer,
             request.url,
             request.id,
             mediaItemsRef.current
           )
           : createVideoItemFromUrl(
-            gl,
+            renderer,
             request.url,
             request.id,
             mediaItemsRef.current
@@ -260,10 +188,10 @@ export default function Whiteboard({
       selectedItemRef.current = null;
       activeTransformRef.current = null;
 
-      const glState = glStateRef.current;
+      const renderer = rendererRef.current;
 
-      if (glState?.gl) {
-        glState.gl.deleteTexture(removedItem.texture);
+      if (renderer) {
+        renderer.deleteTexture(removedItem.texture);
       }
     };
 
@@ -442,8 +370,6 @@ export default function Whiteboard({
   );
 }
 
-const quad = [0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1];
-
 function resizeOverlayCanvas(
   resolution: Resolution,
   canvas: HTMLCanvasElement | null
@@ -472,31 +398,6 @@ function resizeOverlayCanvas(
   }
 }
 
-function resizeMediaCanvas(
-  resolution: Resolution,
-  state: WebGLContextState | null,
-  canvas: HTMLCanvasElement | null
-) {
-  if (!state || !canvas) {
-    return;
-  }
-
-  const { width, height, dpr } = resolution;
-
-  const scaledWidth = Math.max(1, Math.floor(width * dpr));
-  const scaledHeight = Math.max(1, Math.floor(height * dpr));
-
-  if (canvas.width !== scaledWidth || canvas.height !== scaledHeight) {
-    canvas.width = scaledWidth;
-    canvas.height = scaledHeight;
-
-    state.gl.viewport(0, 0, scaledWidth, scaledHeight);
-  }
-
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-}
-
 function calculateCanvasPoint(
   event: PointerEvent<HTMLCanvasElement>,
   canvas: HTMLCanvasElement
@@ -507,62 +408,6 @@ function calculateCanvasPoint(
     x: event.clientX - rect.left,
     y: event.clientY - rect.top,
   };
-}
-
-function renderMediaItems(
-  state: WebGLContextState,
-  items: MediaItem[],
-  resolution: Resolution
-) {
-  const { gl } = state;
-
-  if (resolution.width === 0 || resolution.height === 0) {
-    return;
-  }
-
-  gl.clear(gl.COLOR_BUFFER_BIT);
-
-  gl.useProgram(state.program);
-
-  gl.uniform2f(
-    state.uniforms.resolution,
-    resolution.width * resolution.dpr,
-    resolution.height * resolution.dpr
-  );
-
-  items.forEach((item) => {
-    const textureUpdated = updateTexture(gl, item);
-
-    if (!textureUpdated) {
-      return;
-    }
-
-    const transform = calculateRenderTransform(item, resolution);
-
-    gl.bindTexture(gl.TEXTURE_2D, item.texture);
-
-    gl.uniform2f(
-      state.uniforms.translation,
-      transform.translation.x * resolution.dpr,
-      transform.translation.y * resolution.dpr
-    );
-
-    gl.uniform2f(
-      state.uniforms.scale,
-      transform.scale.x * resolution.dpr,
-      transform.scale.y * resolution.dpr
-    );
-
-    gl.uniform2f(
-      state.uniforms.rotation,
-      Math.cos(transform.rotation),
-      Math.sin(transform.rotation)
-    );
-
-    gl.uniform1f(state.uniforms.opacity, item.opacity);
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-  });
 }
 
 function calculateRenderTransform(
@@ -758,7 +603,7 @@ function renderMediaPlaceholder(
 }
 
 function createImageItemFromUrl(
-  gl: WebGLRenderingContext,
+  renderer: Renderer,
   url: string,
   id: string,
   items: MediaItem[]
@@ -771,7 +616,8 @@ function createImageItemFromUrl(
   image.crossOrigin = "anonymous";
   image.referrerPolicy = "no-referrer";
 
-  const texture = createTexture(gl);
+  const texture = renderer.createTexture();
+
   const transform = calculateInitialTransform(items, baseSize);
 
   const item = {
@@ -807,7 +653,7 @@ function createImageItemFromUrl(
 }
 
 function createVideoItemFromUrl(
-  gl: WebGLRenderingContext,
+  renderer: Renderer,
   url: string,
   id: string,
   items: MediaItem[]
@@ -822,7 +668,7 @@ function createVideoItemFromUrl(
   video.muted = true;
   video.loop = true;
 
-  const texture = createTexture(gl);
+  const texture = renderer.createTexture();
   const transform = calculateInitialTransform(items, baseSize);
 
   const item = {
