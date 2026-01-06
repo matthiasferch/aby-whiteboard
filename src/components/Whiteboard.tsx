@@ -3,13 +3,12 @@ import type { PointerEvent } from "react";
 import {
   getLength,
   clampValue,
-  calculateTransformedVertices,
-  calculateInitialTransform
+  calculateTransformedVertices
 } from "../utilities";
 import { vertexShader, fragmentShader } from "../shaders";
 import { Renderer } from "../renderer";
-import { MediaRequest, MediaItem, MediaState } from "../types/media";
-import { ActiveTransform, TransformMode, RenderTransform } from "../types/transform";
+import { MediaRequest, MediaItem, MediaState, ImageItem, VideoItem } from "../media";
+import { ActiveTransform, TransformMode, RenderTransform, MediaTransform } from "../transform";
 import { Vector } from "../types/vector";
 import { Resolution } from "../types/resolution";
 
@@ -29,7 +28,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
   const mediaItemsRef = useRef<MediaItem[]>([]);
   const completedRequestsRef = useRef<Set<string>>(new Set());
 
-  const selectedItemRef = useRef<string | null>(null);
+  const selectedItemIdRef = useRef<string | null>(null);
   const activeTransformRef = useRef<ActiveTransform | null>(null);
 
   const [isRendererReady, setIsRendererReady] = useState(false);
@@ -104,7 +103,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
       renderOverlay(
         overlayCanvasRef.current,
         mediaItemsRef.current,
-        selectedItemRef.current,
+        selectedItemIdRef.current,
         resolutionRef.current
       );
 
@@ -134,30 +133,25 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
     }
 
     const renderer = rendererRef.current;
+    const items = mediaItemsRef.current;
+
+    const createTexture = () => renderer.createTexture();
 
     mediaRequests.forEach((request) => {
       if (completedRequestsRef.current.has(request.id)) {
         return; // already processed
       }
 
+      const { id, url } = request;
+
       const item =
         request.type === "image"
-          ? createImageItemFromUrl(
-            renderer,
-            request.url,
-            request.id,
-            mediaItemsRef.current
-          )
-          : createVideoItemFromUrl(
-            renderer,
-            request.url,
-            request.id,
-            mediaItemsRef.current
-          );
+          ? ImageItem.fromUrl({ id, url, items }, createTexture)
+          : VideoItem.fromUrl({ id, url, items }, createTexture)
 
-      mediaItemsRef.current.push(item);
+      items.push(item);
 
-      selectedItemRef.current = item.id;
+      selectedItemIdRef.current = item.id;
 
       completedRequestsRef.current.add(request.id);
     });
@@ -171,7 +165,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
         return;
       }
 
-      const selectedItem = selectedItemRef.current;
+      const selectedItem = selectedItemIdRef.current;
 
       if (!selectedItem) {
         return;
@@ -182,13 +176,13 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
       );
 
       if (index === -1) {
-        selectedItemRef.current = null;
+        selectedItemIdRef.current = null;
         return;
       }
 
       const [removedItem] = mediaItemsRef.current.splice(index, 1);
 
-      selectedItemRef.current = null;
+      selectedItemIdRef.current = null;
       activeTransformRef.current = null;
 
       const renderer = rendererRef.current;
@@ -226,14 +220,16 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
           ? "scale"
           : "move";
 
-      const startTransform = {
-        ...selectedItem.transform,
-        position: { ...selectedItem.transform.translation },
-      };
+      const startTranslation = { ...selectedItem.transform.translation };
+      const startTransform = new MediaTransform(
+        startTranslation,
+        selectedItem.transform.scale,
+        selectedItem.transform.rotation
+      );
 
       const center = {
-        x: startTransform.position.x * resolutionRef.current.width,
-        y: startTransform.position.y * resolutionRef.current.height,
+        x: startTransform.translation.x * resolutionRef.current.width,
+        y: startTransform.translation.y * resolutionRef.current.height,
       };
 
       const startVector = {
@@ -241,24 +237,103 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
         y: startPoint.y - center.y,
       };
 
-      activeTransformRef.current = {
-        id: selectedItem.id,
+      activeTransformRef.current = new ActiveTransform(
+        selectedItem.id,
         mode,
-        startPoint,
         startTransform,
-        startDistance: Math.max(1, getLength(startVector)),
-        startAngle: Math.atan2(startVector.y, startVector.x),
-      };
+        startPoint,
+        Math.max(1, getLength(startVector)),
+        Math.atan2(startVector.y, startVector.x)
+      );
 
-      selectedItemRef.current = selectedItem.id;
+      selectedItemIdRef.current = selectedItem.id;
 
       overlay.setPointerCapture(event.pointerId);
 
       return;
     }
 
-    selectedItemRef.current = null;
+    selectedItemIdRef.current = null;
     activeTransformRef.current = null;
+  };
+
+  const getTransformVector = (
+    activeTransform: ActiveTransform,
+    startPoint: Vector,
+    resolution: Resolution
+  ) => {
+    const center = {
+      x: activeTransform.startTransform.translation.x * resolution.width,
+      y: activeTransform.startTransform.translation.y * resolution.height,
+    };
+
+    return {
+      x: startPoint.x - center.x,
+      y: startPoint.y - center.y,
+    };
+  };
+
+  const applyMoveTransform = (
+    activeTransform: ActiveTransform,
+    activeItem: MediaItem,
+    startPoint: Vector,
+    resolution: Resolution
+  ) => {
+    const x = startPoint.x - activeTransform.startPoint.x;
+    const y = startPoint.y - activeTransform.startPoint.y;
+
+    activeItem.transform = new MediaTransform(
+      {
+        x: clampValue(
+          activeTransform.startTransform.translation.x + x / resolution.width,
+          0,
+          1
+        ),
+        y: clampValue(
+          activeTransform.startTransform.translation.y + y / resolution.height,
+          0,
+          1
+        ),
+      },
+      activeTransform.startTransform.scale,
+      activeTransform.startTransform.rotation
+    );
+  };
+
+  const applyScaleTransform = (
+    activeTransform: ActiveTransform,
+    activeItem: MediaItem,
+    startPoint: Vector,
+    resolution: Resolution
+  ) => {
+    const vector = getTransformVector(activeTransform, startPoint, resolution);
+    const scaleFactor = getLength(vector) / activeTransform.startDistance;
+
+    activeItem.transform = new MediaTransform(
+      { ...activeTransform.startTransform.translation },
+      clampValue(
+        activeTransform.startTransform.scale * scaleFactor,
+        0.08,
+        1.4
+      ),
+      activeTransform.startTransform.rotation
+    );
+  };
+
+  const applyRotateTransform = (
+    activeTransform: ActiveTransform,
+    activeItem: MediaItem,
+    startPoint: Vector,
+    resolution: Resolution
+  ) => {
+    const vector = getTransformVector(activeTransform, startPoint, resolution);
+    const angle = Math.atan2(vector.y, vector.x);
+
+    activeItem.transform = new MediaTransform(
+      { ...activeTransform.startTransform.translation },
+      activeTransform.startTransform.scale,
+      activeTransform.startTransform.rotation + (angle - activeTransform.startAngle)
+    );
   };
 
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -289,60 +364,16 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
       }
 
       if (activeTransform.mode === "move") {
-        const x = startPoint.x - activeTransform.startPoint.x;
-        const y = startPoint.y - activeTransform.startPoint.y;
-
-        activeItem.transform = {
-          ...activeTransform.startTransform,
-          translation: {
-            x: clampValue(
-              activeTransform.startTransform.translation.x + x / resolution.width,
-              0,
-              1
-            ),
-            y: clampValue(
-              activeTransform.startTransform.translation.y + y / resolution.height,
-              0,
-              1
-            ),
-          },
-        };
-
+        applyMoveTransform(activeTransform, activeItem, startPoint, resolution);
         return;
       }
-
-      const center = {
-        x: activeTransform.startTransform.translation.x * resolution.width,
-        y: activeTransform.startTransform.translation.y * resolution.height,
-      };
-
-      const vector = {
-        x: startPoint.x - center.x,
-        y: startPoint.y - center.y,
-      };
 
       if (activeTransform.mode === "scale") {
-        const scaleFactor = getLength(vector) / activeTransform.startDistance;
-
-        activeItem.transform = {
-          ...activeTransform.startTransform,
-          scale: clampValue(
-            activeTransform.startTransform.scale * scaleFactor,
-            0.08,
-            1.4
-          ),
-        };
-
+        applyScaleTransform(activeTransform, activeItem, startPoint, resolution);
         return;
       }
 
-      const angle = Math.atan2(vector.y, vector.x);
-
-      activeItem.transform = {
-        ...activeTransform.startTransform,
-        rotation: activeTransform.startTransform.rotation +
-          (angle - activeTransform.startAngle),
-      };
+      applyRotateTransform(activeTransform, activeItem, startPoint, resolution);
     }
   };
 
@@ -416,7 +447,7 @@ function calculateCanvasPoint(
 function calculateRenderTransform(
   item: MediaItem,
   resolution: Resolution
-) {
+): RenderTransform {
   if (!item.transform) {
     const translation = {
       x: item.anchor.x * resolution.width,
@@ -431,12 +462,9 @@ function calculateRenderTransform(
       y: translation.y + height * 0.5,
     };
 
-    return {
-      center,
-      scale: { x: width, y: height },
-      rotation: 0,
-      translation,
-    } as RenderTransform;
+    const scale = { x: width, y: height };
+
+    return new RenderTransform(center, scale, 0, translation);
   }
 
   const width = item.transform.scale * resolution.width;
@@ -447,15 +475,15 @@ function calculateRenderTransform(
     y: item.transform.translation.y * resolution.height,
   };
 
-  return {
-    center,
-    scale: { x: width, y: height },
-    rotation: item.transform.rotation,
-    translation: {
-      x: center.x - width * 0.5,
-      y: center.y - height * 0.5,
-    }
-  } as RenderTransform;
+  const scale = { x: width, y: height };
+  const { rotation } = item.transform;
+
+  const translation = {
+    x: center.x - width * 0.5,
+    y: center.y - height * 0.5,
+  };
+
+  return new RenderTransform(center, scale, rotation, translation);
 }
 
 function getSelectedItem(
@@ -603,107 +631,4 @@ function renderMediaPlaceholder(
   context.fillText(label, 0, 0);
 
   context.restore();
-}
-
-function createImageItemFromUrl(
-  renderer: Renderer,
-  url: string,
-  id: string,
-  items: MediaItem[]
-) {
-  const baseSize = 0.25;
-
-  const image = new Image();
-
-  image.decoding = "async";
-  image.crossOrigin = "anonymous";
-  image.referrerPolicy = "no-referrer";
-
-  const texture = renderer.createTexture();
-
-  const transform = calculateInitialTransform(items, baseSize);
-
-  const item = {
-    id,
-    type: "image",
-    source: image,
-    texture,
-    aspect: 1,
-    baseSize,
-    anchor: { x: 0.5, y: 0.5 },
-    opacity: 1,
-    uploaded: false,
-    state: "loading",
-    transform,
-  } as MediaItem;
-
-  image.onload = () => {
-    if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-      item.aspect = image.naturalWidth / image.naturalHeight;
-      item.state = "ready";
-    } else {
-      item.state = "error";
-    }
-  };
-
-  image.onerror = () => {
-    item.state = "error";
-  };
-
-  image.src = url;
-
-  return item;
-}
-
-function createVideoItemFromUrl(
-  renderer: Renderer,
-  url: string,
-  id: string,
-  items: MediaItem[]
-) {
-  const baseSize = 0.25;
-
-  const video = document.createElement("video");
-
-  video.crossOrigin = "anonymous";
-  video.playsInline = true;
-  video.preload = "auto";
-  video.muted = true;
-  video.loop = true;
-
-  const texture = renderer.createTexture();
-  const transform = calculateInitialTransform(items, baseSize);
-
-  const item = {
-    id,
-    type: "video",
-    source: video,
-    texture,
-    aspect: 16 / 9,
-    baseSize,
-    anchor: { x: 0.5, y: 0.5 },
-    opacity: 1,
-    uploaded: false,
-    state: "loading",
-    transform,
-  } as MediaItem;
-
-  video.addEventListener("loadedmetadata", () => {
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      item.aspect = video.videoWidth / video.videoHeight;
-    }
-  });
-
-  video.addEventListener("loadeddata", () => {
-    item.state = "ready";
-  });
-
-  video.addEventListener("error", () => {
-    item.state = "error";
-  });
-
-  video.src = url;
-  video.play().catch(() => undefined);
-
-  return item;
 }

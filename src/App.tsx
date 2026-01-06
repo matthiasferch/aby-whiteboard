@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Whiteboard from "./components/Whiteboard";
-import { MediaType, MediaRequest } from "./types/media";
+import { MediaType, MediaRequest } from "./media";
 
 export default function App() {
   const [mediaUrl, setMediaUrl] = useState("");

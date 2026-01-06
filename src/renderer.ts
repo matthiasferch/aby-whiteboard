@@ -1,6 +1,6 @@
-import { MediaItem } from "./types/media";
+import { MediaItem } from "./media";
 import { Resolution } from "./types/resolution";
-import { RenderTransform } from "./types/transform";
+import { RenderTransform } from "./transform";
 
 type RendererAttributes = {
   position: number;
@@ -9,9 +9,11 @@ type RendererAttributes = {
 
 type RendererUniforms = {
   resolution: WebGLUniformLocation;
+
   scale: WebGLUniformLocation;
   rotation: WebGLUniformLocation;
   translation: WebGLUniformLocation;
+
   opacity: WebGLUniformLocation;
   texture: WebGLUniformLocation;
 };
@@ -52,9 +54,11 @@ export class Renderer {
 
     this.uniforms = {
       resolution: this.getUniformLocation("u_resolution"),
+
       scale: this.getUniformLocation("u_scale"),
       rotation: this.getUniformLocation("u_rotation"),
       translation: this.getUniformLocation("u_translation"),
+
       opacity: this.getUniformLocation("u_opacity"),
       texture: this.getUniformLocation("u_texture"),
     };
