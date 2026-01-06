@@ -59,7 +59,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
         renderer.setViewport(resolution, mediaCanvasRef.current);
       }
 
-      resizeOverlayCanvas(resolution, overlayCanvasRef.current);
+      resizeOverlay(resolution, overlayCanvasRef.current);
     });
 
     observer.observe(container);
@@ -425,7 +425,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
   );
 }
 
-function resizeOverlayCanvas(
+function resizeOverlay(
   resolution: Resolution,
   canvas: HTMLCanvasElement | null
 ) {
@@ -562,7 +562,7 @@ function calculateVertexBounds(vertices: Vector[]) {
   return { minimum, maximum };
 }
 
-function renderSelectionEffects(
+function renderSelectionDetails(
   context: CanvasRenderingContext2D,
   item: MediaItem,
   vertices: Vector[]
@@ -675,7 +675,7 @@ function renderOverlay(
   context.closePath();
   context.stroke();
 
-  renderSelectionEffects(context, item, vertices);
+  renderSelectionDetails(context, item, vertices);
 
   context.restore();
 }
