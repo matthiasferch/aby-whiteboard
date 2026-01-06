@@ -155,7 +155,7 @@ export function renderOverlay(
   context.closePath();
   context.stroke();
 
-  renderSelectionDetails(context, item, vertices);
+  renderSelectionDetails(context, item, transform);
 
   context.restore();
 }
@@ -189,39 +189,16 @@ function isPointWithinTransform(point: Vector, transform: RenderTransform) {
   const cos = Math.cos(-transform.rotation);
   const sin = Math.sin(-transform.rotation);
 
-  const localX = x * cos - y * sin;
-  const localY = x * sin + y * cos;
-
   return (
-    Math.abs(localX) <= transform.scale.x * 0.5 &&
-    Math.abs(localY) <= transform.scale.y * 0.5
+    Math.abs(x * cos - y * sin) <= transform.scale.x * 0.5 &&
+    Math.abs(x * sin + y * cos) <= transform.scale.y * 0.5
   );
-}
-
-function calculateVertexBounds(vertices: Vector[]) {
-  const minimum = {
-    x: Number.POSITIVE_INFINITY,
-    y: Number.POSITIVE_INFINITY,
-  };
-  const maximum = {
-    x: Number.NEGATIVE_INFINITY,
-    y: Number.NEGATIVE_INFINITY,
-  };
-
-  vertices.forEach((vertex) => {
-    minimum.x = Math.min(minimum.x, vertex.x);
-    minimum.y = Math.min(minimum.y, vertex.y);
-    maximum.x = Math.max(maximum.x, vertex.x);
-    maximum.y = Math.max(maximum.y, vertex.y);
-  });
-
-  return { minimum, maximum };
 }
 
 function renderSelectionDetails(
   context: CanvasRenderingContext2D,
   item: MediaItem,
-  vertices: Vector[]
+  transform: RenderTransform
 ) {
   const lines = [
     `Blur: ${item.blur.toFixed(2)}`,
@@ -232,34 +209,39 @@ function renderSelectionDetails(
 
   context.save();
 
-  context.font = "12px Roboto, sans-serif";
+  const fontSize = 12;
+  const lineHeight = fontSize * 1.4;
+  const padding = fontSize * 0.6;
+
+  context.translate(transform.center.x, transform.center.y);
+  context.rotate(transform.rotation);
+
+  context.font = `${fontSize}px Roboto, sans-serif`;
   context.textAlign = "left";
   context.textBaseline = "top";
 
-  const lineHeight = 16;
-  const padding = 6;
   const maxWidth = Math.max(...lines.map((line) => context.measureText(line).width));
   const boxWidth = maxWidth + padding * 2;
   const boxHeight = lines.length * lineHeight + padding * 2;
 
-  const bounds = calculateVertexBounds(vertices);
+  const halfWidth = transform.scale.x * 0.5;
+  const halfHeight = transform.scale.y * 0.5;
 
-  const inset = 6;
   const minimum = {
-    x: bounds.minimum.x + inset,
-    y: bounds.minimum.y + inset
+    x: -halfWidth + padding,
+    y: -halfHeight + padding
   };
   const maximum = {
-    x: bounds.maximum.x - boxWidth - inset,
-    y: bounds.maximum.y - boxHeight - inset
+    x: halfWidth - boxWidth - padding,
+    y: halfHeight - boxHeight - padding
   };
 
   const x = maximum.x >= minimum.x
     ? clampValue(minimum.x, minimum.x, maximum.x)
-    : bounds.minimum.x + inset;
+    : -halfWidth + padding;
   const y = maximum.y >= minimum.y
     ? clampValue(minimum.y, minimum.y, maximum.y)
-    : bounds.minimum.y + inset;
+    : -halfHeight + padding;
 
   context.fillStyle = "rgba(15, 23, 42, 0.75)";
   context.strokeStyle = "rgba(148, 163, 184, 0.7)";

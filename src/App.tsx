@@ -75,7 +75,7 @@ export default function App() {
 
               <input
                 type="url"
-                placeholder="https://example.com/whiteboard.png"
+                placeholder="URL must be CORS-enabled"
                 value={mediaUrl}
                 onChange={(event) => setMediaUrl(event.target.value)}
                 onKeyDown={(event) => {
@@ -159,12 +159,9 @@ export default function App() {
               }}
               disabled={!mediaUrl.trim()}
             >
-              Add media
+              Add Media
             </button>
           </div>
-
-          <p>Media URLs must be CORS-enabled.</p>
-
         </div>
       </div>
 
