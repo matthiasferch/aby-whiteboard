@@ -9,8 +9,7 @@ import { vertexShader, fragmentShader } from "../shaders";
 import { Renderer } from "../renderer";
 import { MediaRequest, MediaItem, MediaState, ImageItem, VideoItem } from "../media";
 import { ActiveTransform, TransformMode, RenderTransform, MediaTransform } from "../transform";
-import { Vector } from "../types/vector";
-import { Resolution } from "../types/resolution";
+import { Resolution, Vector } from "../types";
 
 type WhiteboardProps = {
   mediaRequests: MediaRequest[];

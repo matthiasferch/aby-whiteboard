@@ -1,6 +1,6 @@
 import { MediaItem } from "./media";
-import { Resolution } from "./types/resolution";
 import { RenderTransform } from "./transform";
+import { Resolution } from "./types";
 
 type RendererAttributes = {
   position: number;

@@ -1,4 +1,4 @@
-import { Vector } from "./types/vector";
+import { Vector } from "./types";
 
 export class MediaTransform {
   constructor(

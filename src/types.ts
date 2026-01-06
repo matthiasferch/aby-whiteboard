@@ -3,3 +3,8 @@ export type Resolution = {
   height: number;
   dpr: number;
 };
+
+export type Vector = {
+  x: number;
+  y: number;
+};

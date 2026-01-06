@@ -1,5 +1,5 @@
 import { RenderTransform } from "./transform";
-import { Vector } from "./types/vector";
+import { Vector } from "./types";
 
 export function getLength(vector: Vector): number {
   return Math.hypot(vector.x, vector.y);

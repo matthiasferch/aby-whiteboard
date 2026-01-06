@@ -1,6 +1,6 @@
 import { clampValue } from "./utilities";
 import { MediaTransform } from "./transform";
-import { Vector } from "./types/vector";
+import { Vector } from "./types";
 
 export type MediaType = "image" | "video";
 export type MediaState = "loading" | "ready" | "error";
