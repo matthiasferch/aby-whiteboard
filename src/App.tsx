@@ -6,7 +6,23 @@ export default function App() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaType, setMediaType] = useState<MediaType>("image");
 
-  const [mediaRequests, setMediaRequests] = useState<MediaRequest[]>([]);
+  const [mediaRequests, setMediaRequests] = useState<MediaRequest[]>([
+    {
+      id: crypto.randomUUID(),
+      type: "image",
+      url: "https://picsum.photos/id/1069/900/600"
+    },
+    {
+      id: crypto.randomUUID(),
+      type: "image",
+      url: "https://picsum.photos/id/1025/800/600"
+    },
+    {
+      id: crypto.randomUUID(),
+      type: "video",
+      url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+    }
+  ]);
 
   const addMedia = (type: MediaType, url: string) => {
     const trimmedUrl = url.trim();

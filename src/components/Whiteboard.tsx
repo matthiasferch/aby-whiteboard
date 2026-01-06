@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import {
   getLength,
@@ -31,6 +31,8 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
 
   const selectedItemRef = useRef<string | null>(null);
   const activeTransformRef = useRef<ActiveTransform | null>(null);
+
+  const [isRendererReady, setIsRendererReady] = useState(false);
 
   // canvas resize effect
 
@@ -79,6 +81,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
     const renderer = new Renderer(canvas, vertexShader, fragmentShader);
 
     rendererRef.current = renderer;
+    setIsRendererReady(true);
 
     const resolution = resolutionRef.current;
 
@@ -126,7 +129,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
   // media requests effect
 
   useEffect(() => {
-    if (!rendererRef.current) {
+    if (!rendererRef.current || !isRendererReady) {
       return;
     }
 
@@ -158,7 +161,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
 
       completedRequestsRef.current.add(request.id);
     });
-  }, [mediaRequests]);
+  }, [isRendererReady, mediaRequests]);
 
   // window event listener effect
 
