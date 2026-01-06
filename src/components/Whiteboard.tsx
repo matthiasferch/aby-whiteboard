@@ -710,11 +710,11 @@ function renderMediaPlaceholders(
 
     const transform = calculateRenderTransform(item, resolution);
 
-    drawPlaceholder(context, transform, item.state);
+    renderMediaPlaceholder(context, transform, item.state);
   });
 }
 
-function drawPlaceholder(
+function renderMediaPlaceholder(
   context: CanvasRenderingContext2D,
   transform: RenderTransform,
   state: MediaState
