@@ -9,8 +9,12 @@ export type MediaSource = HTMLImageElement | HTMLVideoElement;
 
 export type MediaRequest = {
   id: string;
-  type: MediaType;
   url: string;
+  type: MediaType;
+  blur?: number;
+  opacity?: number;
+  contrast?: number;
+  brightness?: number;
 };
 
 type MediaItemFactoryOptions = {
@@ -18,6 +22,10 @@ type MediaItemFactoryOptions = {
   url: string;
   items: MediaItem[];
   baseSize?: number;
+  opacity?: number;
+  blur?: number;
+  brightness?: number;
+  contrast?: number;
 };
 
 export abstract class MediaItem {
@@ -30,15 +38,18 @@ export abstract class MediaItem {
     public baseSize: number,
     public transform: MediaTransform | undefined = undefined,
     public aspect = 1,
-    public anchor: Vector = { x: 0.5, y: 0.5 },
     public opacity = 1,
+    public blur = 0,
+    public brightness = 1,
+    public contrast = 1,
+    public anchor: Vector = { x: 0.5, y: 0.5 },
     public uploaded = false,
     public state: MediaState = "loading"
   ) { }
 
   protected static calculateInitialTransform(items: MediaItem[], scale: number): MediaTransform {
-    const x = ((items.length % 3) - 1) * 0.12;
-    const y = ((Math.floor(items.length / 3) % 3) - 1) * 0.1;
+    const x = ((items.length % 3) - 1) * 0.275;
+    const y = ((Math.floor(items.length / 3) % 3) - 1) * 0.25;
 
     const translation = {
       x: clampValue(0.5 + x, 0.15, 0.85),
@@ -72,7 +83,11 @@ export class ImageItem extends MediaItem {
       texture,
       baseSize,
       transform,
-      1
+      1,
+      options.opacity ?? 1,
+      options.blur ?? 0,
+      options.brightness ?? 1,
+      options.contrast ?? 1
     );
 
     image.onload = () => {
@@ -119,7 +134,11 @@ export class VideoItem extends MediaItem {
       texture,
       baseSize,
       transform,
-      16 / 9
+      16 / 9,
+      options.opacity ?? 1,
+      options.blur ?? 0,
+      options.brightness ?? 1,
+      options.contrast ?? 1
     );
 
     video.addEventListener("loadedmetadata", () => {

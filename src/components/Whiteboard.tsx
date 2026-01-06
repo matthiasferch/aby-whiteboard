@@ -142,12 +142,34 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
         return; // already processed
       }
 
-      const { id, url } = request;
+      const { id, url, opacity, blur, brightness, contrast } = request;
 
       const item =
         request.type === "image"
-          ? ImageItem.fromUrl({ id, url, items }, createTexture)
-          : VideoItem.fromUrl({ id, url, items }, createTexture)
+          ? ImageItem.fromUrl(
+            {
+              id,
+              url,
+              items,
+              opacity,
+              blur,
+              brightness,
+              contrast,
+            },
+            createTexture
+          )
+          : VideoItem.fromUrl(
+            {
+              id,
+              url,
+              items,
+              opacity,
+              blur,
+              brightness,
+              contrast,
+            },
+            createTexture
+          )
 
       items.push(item);
 
@@ -520,6 +542,89 @@ function isPointWithinTransform(point: Vector, transform: RenderTransform) {
   );
 }
 
+function calculateVertexBounds(vertices: Vector[]) {
+  const minimum = {
+    x: Number.POSITIVE_INFINITY,
+    y: Number.POSITIVE_INFINITY,
+  };
+
+  const maximum = {
+    x: Number.NEGATIVE_INFINITY,
+    y: Number.NEGATIVE_INFINITY,
+  };
+
+  vertices.forEach((vertex) => {
+    minimum.x = Math.min(minimum.x, vertex.x);
+    minimum.y = Math.min(minimum.y, vertex.y);
+    maximum.x = Math.max(maximum.x, vertex.x);
+    maximum.y = Math.max(maximum.y, vertex.y);
+  });
+
+  return { minimum, maximum };
+}
+
+function renderSelectionEffects(
+  context: CanvasRenderingContext2D,
+  item: MediaItem,
+  vertices: Vector[]
+) {
+  const lines = [
+    `Blur: ${item.blur.toFixed(2)}`,
+    `Opacity: ${item.opacity.toFixed(2)}`,
+    `Contrast: ${item.contrast.toFixed(2)}`,
+    `Brightness: ${item.brightness.toFixed(2)}`,
+  ];
+
+  context.save();
+
+  context.font = "12px Roboto, sans-serif";
+  context.textAlign = "left";
+  context.textBaseline = "top";
+
+  const lineHeight = 16;
+  const padding = 6;
+
+  const maxWidth = Math.max(...lines.map((line) => {
+    const { width } = context.measureText(line);
+    return width;
+  }));
+
+  const boxWidth = maxWidth + padding * 2;
+  const boxHeight = lines.length * lineHeight + padding * 2;
+
+  const bounds = calculateVertexBounds(vertices);
+
+  const inset = 6;
+
+  const minimum = {
+    x: bounds.minimum.x + inset,
+    y: bounds.minimum.y + inset
+  };
+
+  const maximum = {
+    x: bounds.maximum.x - boxWidth - inset,
+    y: bounds.maximum.y - boxHeight - inset
+  };
+
+  const x = maximum.x >= minimum.x ? clampValue(minimum.x, minimum.x, maximum.x) : bounds.minimum.x + inset;
+  const y = maximum.y >= minimum.y ? clampValue(minimum.y, minimum.y, maximum.y) : bounds.minimum.y + inset;
+
+  context.fillStyle = "rgba(15, 23, 42, 0.75)";
+  context.strokeStyle = "rgba(148, 163, 184, 0.7)";
+  context.lineWidth = 1;
+
+  context.fillRect(x, y, boxWidth, boxHeight);
+  context.strokeRect(x, y, boxWidth, boxHeight);
+
+  context.fillStyle = "rgba(248, 250, 252, 0.95)";
+
+  lines.forEach((line, index) => {
+    context.fillText(line, x + padding, y + padding + index * lineHeight);
+  });
+
+  context.restore();
+}
+
 function renderOverlay(
   canvas: HTMLCanvasElement | null,
   items: MediaItem[],
@@ -570,6 +675,8 @@ function renderOverlay(
 
   context.closePath();
   context.stroke();
+
+  renderSelectionEffects(context, item, vertices);
 
   context.restore();
 }

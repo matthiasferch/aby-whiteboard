@@ -14,7 +14,11 @@ type RendererUniforms = {
   rotation: WebGLUniformLocation;
   translation: WebGLUniformLocation;
 
+  blur: WebGLUniformLocation;
   opacity: WebGLUniformLocation;
+  contrast: WebGLUniformLocation;
+  brightness: WebGLUniformLocation;
+
   texture: WebGLUniformLocation;
 };
 
@@ -59,7 +63,11 @@ export class Renderer {
       rotation: this.getUniformLocation("u_rotation"),
       translation: this.getUniformLocation("u_translation"),
 
+      blur: this.getUniformLocation("u_blur"),
       opacity: this.getUniformLocation("u_opacity"),
+      contrast: this.getUniformLocation("u_contrast"),
+      brightness: this.getUniformLocation("u_brightness"),
+
       texture: this.getUniformLocation("u_texture"),
     };
   }
@@ -174,6 +182,9 @@ export class Renderer {
       );
 
       this.gl.uniform1f(this.uniforms.opacity, item.opacity);
+      this.gl.uniform1f(this.uniforms.blur, item.blur * resolution.dpr);
+      this.gl.uniform1f(this.uniforms.brightness, item.brightness);
+      this.gl.uniform1f(this.uniforms.contrast, item.contrast);
 
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
     });
@@ -341,9 +352,11 @@ export class Renderer {
     this.gl.linkProgram(program);
 
     if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+      const info = this.gl.getProgramInfoLog(program);
+
       this.gl.deleteProgram(program);
 
-      throw new Error("Failed to link WebGL program");
+      throw new Error("Failed to link WebGL program:" + info);
     }
 
     this.gl.deleteShader(vertexShader);
