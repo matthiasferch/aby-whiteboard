@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Roboto", sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 28px;
+  padding: 28px 32px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.panel-section h2 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+label input {
+  padding: 4px 6px;
+  font-family: inherit;
+}
+
+label select {
+  padding: 4px 6px;
+  font-family: inherit;
+}
+
+.media-input {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.media-input button {
+  justify-self: start;
+}
+
+.whiteboard-wrapper {
+  position: relative;
+  overflow: hidden;
+  min-height: 620px;
+  background: white;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.whiteboard-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(transparent 95%, rgba(15, 23, 42, 0.04) 95%),
+    linear-gradient(90deg, transparent 95%, rgba(15, 23, 42, 0.04) 95%);
+  background-size: 32px 32px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.whiteboard {
+  position: absolute;
+  inset: 0;
+}
+
+.whiteboard canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.whiteboard canvas.overlay {
+  touch-action: none;
+  cursor: grab;
+}
+
+.whiteboard canvas.overlay:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 960px) {
+  .app {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .whiteboard-wrapper {
+    min-height: 480px;
+  }
+}
