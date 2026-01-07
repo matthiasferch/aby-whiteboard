@@ -75,7 +75,7 @@ export default function App() {
 
               <input
                 type="url"
-                placeholder="URL must be CORS-enabled"
+                placeholder="CORS must be enabled for media URL"
                 value={mediaUrl}
                 onChange={(event) => setMediaUrl(event.target.value)}
                 onKeyDown={(event) => {
