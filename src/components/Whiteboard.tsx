@@ -82,6 +82,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
     const renderer = new Renderer(canvas, vertexShader, fragmentShader);
 
     rendererRef.current = renderer;
+
     setIsRendererReady(true);
 
     const resolution = resolutionRef.current;
@@ -148,30 +149,8 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
 
       const item =
         request.type === "image"
-          ? ImageItem.fromUrl(
-            {
-              id,
-              url,
-              items,
-              opacity,
-              blur,
-              brightness,
-              contrast,
-            },
-            createTexture
-          )
-          : VideoItem.fromUrl(
-            {
-              id,
-              url,
-              items,
-              opacity,
-              blur,
-              brightness,
-              contrast,
-            },
-            createTexture
-          )
+          ? ImageItem.fromUrl({ id, url, items, opacity, blur, brightness, contrast }, createTexture)
+          : VideoItem.fromUrl({ id, url, items, opacity, blur, brightness, contrast }, createTexture)
 
       items.push(item);
 
@@ -238,22 +217,25 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
     const selectedItem = getSelectedItem(startPoint, mediaItemsRef.current, resolutionRef.current);
 
     if (selectedItem?.transform) {
+      const { id, transform } = selectedItem;
+
       const mode: TransformMode = event.altKey
         ? "rotate"
         : event.shiftKey
           ? "scale"
           : "move";
 
-      const startTranslation = { ...selectedItem.transform.translation };
       const startTransform = new MediaTransform(
-        startTranslation,
-        selectedItem.transform.scale,
-        selectedItem.transform.rotation
+        { ...transform.translation },
+        transform.scale,
+        transform.rotation
       );
 
+      const resolution = resolutionRef.current;
+
       const center = {
-        x: startTransform.translation.x * resolutionRef.current.width,
-        y: startTransform.translation.y * resolutionRef.current.height,
+        x: startTransform.translation.x * resolution.width,
+        y: startTransform.translation.y * resolution.height,
       };
 
       const startVector = {
@@ -262,7 +244,7 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
       };
 
       activeTransformRef.current = new ActiveTransform(
-        selectedItem.id,
+        id,
         mode,
         startTransform,
         startPoint,
@@ -282,13 +264,16 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
   };
 
   const getTransformVector = (
-    activeTransform: ActiveTransform,
+    transform: ActiveTransform,
     startPoint: Vector,
     resolution: Resolution
   ) => {
+    const { startTransform } = transform;
+    const { translation } = startTransform;
+
     const center = {
-      x: activeTransform.startTransform.translation.x * resolution.width,
-      y: activeTransform.startTransform.translation.y * resolution.height,
+      x: translation.x * resolution.width,
+      y: translation.y * resolution.height,
     };
 
     return {
@@ -298,65 +283,62 @@ export default function Whiteboard({ mediaRequests }: WhiteboardProps) {
   };
 
   const applyMoveTransform = (
-    activeTransform: ActiveTransform,
+    transform: ActiveTransform,
     activeItem: MediaItem,
     startPoint: Vector,
     resolution: Resolution
   ) => {
-    const x = startPoint.x - activeTransform.startPoint.x;
-    const y = startPoint.y - activeTransform.startPoint.y;
+    const { startTransform } = transform;
+    const { scale, rotation, translation } = startTransform;
+
+    const x = startPoint.x - transform.startPoint.x;
+    const y = startPoint.y - transform.startPoint.y;
 
     activeItem.transform = new MediaTransform(
       {
-        x: clampValue(
-          activeTransform.startTransform.translation.x + x / resolution.width,
-          0,
-          1
-        ),
-        y: clampValue(
-          activeTransform.startTransform.translation.y + y / resolution.height,
-          0,
-          1
-        ),
+        x: clampValue(translation.x + x / resolution.width, 0, 1),
+        y: clampValue(translation.y + y / resolution.height, 0, 1),
       },
-      activeTransform.startTransform.scale,
-      activeTransform.startTransform.rotation
+      scale,
+      rotation
     );
   };
 
   const applyScaleTransform = (
-    activeTransform: ActiveTransform,
+    transform: ActiveTransform,
     activeItem: MediaItem,
     startPoint: Vector,
     resolution: Resolution
   ) => {
-    const vector = getTransformVector(activeTransform, startPoint, resolution);
-    const scaleFactor = getLength(vector) / activeTransform.startDistance;
+    const { startTransform } = transform;
+    const { scale, rotation, translation } = startTransform;
+
+    const vector = getTransformVector(transform, startPoint, resolution);
+    const scaleFactor = getLength(vector) / transform.startDistance;
 
     activeItem.transform = new MediaTransform(
-      { ...activeTransform.startTransform.translation },
-      clampValue(
-        activeTransform.startTransform.scale * scaleFactor,
-        0.08,
-        1.4
-      ),
-      activeTransform.startTransform.rotation
+      { ...translation },
+      clampValue(scale * scaleFactor, 0.08, 1.4),
+      rotation
     );
   };
 
   const applyRotateTransform = (
-    activeTransform: ActiveTransform,
+    transform: ActiveTransform,
     activeItem: MediaItem,
     startPoint: Vector,
     resolution: Resolution
   ) => {
-    const vector = getTransformVector(activeTransform, startPoint, resolution);
+    const { startTransform, startAngle } = transform;
+    const { scale, rotation, translation } = startTransform;
+
+    const vector = getTransformVector(transform, startPoint, resolution);
     const angle = Math.atan2(vector.y, vector.x);
 
     activeItem.transform = new MediaTransform(
-      { ...activeTransform.startTransform.translation },
-      activeTransform.startTransform.scale,
-      activeTransform.startTransform.rotation + (angle - activeTransform.startAngle)
+      { ...translation },
+      scale,
+      rotation + (angle - startAngle)
     );
   };
 

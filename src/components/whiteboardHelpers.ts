@@ -67,16 +67,18 @@ export function calculateRenderTransform(
     return new RenderTransform(center, scale, 0, translation);
   }
 
-  const width = item.transform.scale * resolution.width;
-  const height = width / item.aspect;
+  const { transform, aspect } = item;
+  const { rotation } = transform;
+
+  const width = transform.scale * resolution.width;
+  const height = width / aspect;
 
   const center = {
-    x: item.transform.translation.x * resolution.width,
-    y: item.transform.translation.y * resolution.height,
+    x: transform.translation.x * resolution.width,
+    y: transform.translation.y * resolution.height,
   };
 
   const scale = { x: width, y: height };
-  const { rotation } = item.transform;
 
   const translation = {
     x: center.x - width * 0.5,
@@ -120,7 +122,9 @@ export function renderOverlay(
     return;
   }
 
-  context.clearRect(0, 0, resolution.width, resolution.height);
+  const { width, height } = resolution;
+
+  context.clearRect(0, 0, width, height);
 
   renderMediaPlaceholders(context, items, resolution);
 
@@ -183,15 +187,17 @@ function calculateTransformedVertices(transform: RenderTransform): Vector[] {
 }
 
 function isPointWithinTransform(point: Vector, transform: RenderTransform) {
-  const x = point.x - transform.center.x;
-  const y = point.y - transform.center.y;
+  const { scale, rotation, center } = transform;
 
-  const cos = Math.cos(-transform.rotation);
-  const sin = Math.sin(-transform.rotation);
+  const x = point.x - center.x;
+  const y = point.y - center.y;
+
+  const cos = Math.cos(-rotation);
+  const sin = Math.sin(-rotation);
 
   return (
-    Math.abs(x * cos - y * sin) <= transform.scale.x * 0.5 &&
-    Math.abs(x * sin + y * cos) <= transform.scale.y * 0.5
+    Math.abs(x * cos - y * sin) <= scale.x * 0.5 &&
+    Math.abs(x * sin + y * cos) <= scale.y * 0.5
   );
 }
 
